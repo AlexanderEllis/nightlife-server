@@ -1,4 +1,13 @@
 var express = require('express');
+var request = require('request');
+
+try {
+  var config = require('./config'); // Local config file not included in git
+}
+catch (err) {
+  var config = 'foo';// PROCESS.ENV for Heroku eventually
+}
+
 var app = express();
 
 let bars = [{
@@ -37,6 +46,16 @@ let bars = [{
 }];
 
 app.get('/', function (req, res) {
+
+  console.log('getting local info');
+  request.post("https://api.yelp.com/oauth2/token", {form: {
+    grant_type: 'client_credentials',
+    client_id: config.YELP_CLIENT_ID,
+    client_secret: config.YELP_CLIENT_SECRET
+    }}, function(err, httpResponse, body) {
+      console.log(body);
+  })
+
   res.send('Hello World!');
 });
 
