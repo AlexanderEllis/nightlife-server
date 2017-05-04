@@ -1,5 +1,6 @@
 var express = require('express');
 var request = require('request');
+var rp = require('request-promise');
 
 try {
   var config = require('./config'); // Local config file not included in git
@@ -8,8 +9,10 @@ catch (err) {
   var config = 'foo';// PROCESS.ENV for Heroku eventually
 }
 
-var app = express();
+var YELP_TOKEN;
 
+var app = express();
+/*
 let bars = [{
   type: 'bars',
   id: 'sports-bar',
@@ -44,17 +47,55 @@ let bars = [{
     image: 'https://vinepair.com/wp-content/uploads/2015/10/Krog-Bar.jpg'
   }
 }];
+*/
+var yelpTokenApiPromise = new Promise(function(resolve, reject) {
+  let options = {
+    method: 'POST',
+    uri: 'https://api.yelp.com/oauth2/token',
+    form: {
+      grant_type: 'client_credentials',
+      client_id: config.YELP_CLIENT_ID,
+      client_secret: config.YELP_CLIENT_SECRET,
+    },
+    headers: {
+      'content-type': 'application/x-www-form-urlencoded'
+    },
+    json: true
+  };
+
+  rp(options)
+    .then(body => {
+      YELP_TOKEN = body.access_token;
+      resolve(YELP_TOKEN);
+    })
+    .catch(err => {
+      reject(Error(err));
+    })
+});
+
+function searchYelpLocation (location) {
+  let options = {
+    method: 'GET',
+    uri: 'https://api.yelp.com/v3/businesses/search?limit=15&categories=bars&location=' + location,
+    headers: {
+      'authorization': 'BEARER ' + YELP_TOKEN
+    },
+    json: true
+  };
+
+  return new Promise(function(resolve, reject) {
+    rp(options)
+      .then(body => {
+        resolve(body);
+      })
+      .catch(err => {
+        reject(Error(err));
+      })
+  })
+}
+
 
 app.get('/', function (req, res) {
-
-  console.log('getting local info');
-  request.post("https://api.yelp.com/oauth2/token", {form: {
-    grant_type: 'client_credentials',
-    client_id: config.YELP_CLIENT_ID,
-    client_secret: config.YELP_CLIENT_SECRET
-    }}, function(err, httpResponse, body) {
-      console.log(body);
-  })
 
   res.send('Hello World!');
 });
@@ -64,14 +105,28 @@ app.get('/api', function (req, res) {
 });
 
 app.get('/api/bars', function (req, res) {
-  if (req.queryParams !== undefined && req.queryParams.name !== undefined) {
-    let filteredBars = bars.filter(function (i) {
-      return i.attributes.name.toLowerCase().indexOf(req.queryParams.name.toLowerCase()) !== -1;
+  console.log('getting local info');
+
+  yelpTokenApiPromise.then(result => {
+    console.log('Received Yelp Token');
+
+    searchYelpLocation('Boston').then(bars => {
+      // TODO: match incoming yelp data with templates/routes/controllers etc
+
+      if (req.queryParams !== undefined && req.queryParams.name !== undefined) {
+        let filteredBars = bars.filter(function (i) {
+          return i.attributes.name.toLowerCase().indexOf(req.queryParams.name.toLowerCase()) !== -1;
+        });
+        res.send({ data: filteredBars });
+      } else {
+        res.send({ data: bars });
+      }
+
     });
-    res.send({ data: filteredBars });
-  } else {
-    res.send({ data: bars });
-  }
+  }, err => {
+    console.log(err);
+  });
+
 });
 
 app.get('/api/bars:id', function(req, res) {
