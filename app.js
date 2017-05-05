@@ -12,7 +12,7 @@ catch (err) {
 var YELP_TOKEN;
 
 var app = express();
-/*
+
 let bars = [{
   type: 'bars',
   id: 'sports-bar',
@@ -47,8 +47,9 @@ let bars = [{
     image: 'https://vinepair.com/wp-content/uploads/2015/10/Krog-Bar.jpg'
   }
 }];
-*/
+
 var yelpTokenApiPromise = new Promise(function(resolve, reject) {
+
   let options = {
     method: 'POST',
     uri: 'https://api.yelp.com/oauth2/token',
@@ -106,12 +107,31 @@ app.get('/api', function (req, res) {
 
 app.get('/api/bars', function (req, res) {
   console.log('getting local info');
+  console.log(req.queryParams);
 
   yelpTokenApiPromise.then(result => {
     console.log('Received Yelp Token');
 
-    searchYelpLocation('Boston').then(bars => {
-      // TODO: match incoming yelp data with templates/routes/controllers etc
+    searchYelpLocation('Boston').then(results => {
+      // TODO: Figure out caching info so we don't make new calls every time
+      // TODO: Why aren't the google maps showing up
+      // TODO: Add actual search button for location 
+      // TODO: authentication
+      // TODO: storing who's going where in our db
+
+      let bars = [];
+      for (let i = 0; i < results.businesses.length; i++) {
+        let bar = {};
+        bar.type = 'bars';
+        bar.id = results.businesses[i].id;
+        bar.attributes = {
+          name: results.businesses[i].name,
+          location: results.businesses[i].location.address1 + ' ' + results.businesses[i].location.city + ', ' + results.businesses[i].location.state,
+          rating: results.businesses[i].rating,
+          image: results.businesses[i].image_url,
+        };
+        bars.push(bar);
+      }
 
       if (req.queryParams !== undefined && req.queryParams.name !== undefined) {
         let filteredBars = bars.filter(function (i) {
